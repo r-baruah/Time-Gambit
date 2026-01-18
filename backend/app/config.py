@@ -6,12 +6,20 @@ class Settings(BaseSettings):
     APP_NAME: str = "AI Planning Agent"
     APP_VERSION: str = "0.1.0"
     
+    # LLM Settings
+    LLM_PROVIDER: str = "google" # openrouter, openai, google
+
     # OpenAI
-    OPENAI_API_KEY: str
+    OPENAI_API_KEY: str = ""
+    OPENAI_MODEL: str = "gpt-4o"
     
     # OpenRouter
-    OPENROUTER_API_KEY: str
+    OPENROUTER_API_KEY: str = ""
     OPENROUTER_MODEL: str = "z-ai/glm-4.5-air:free"
+
+    # Google Gemini
+    GOOGLE_API_KEY: str = ""
+    GOOGLE_MODEL: str = "gemini-2.5-flash"
     
     # Google Calendar
     GOOGLE_CLIENT_ID: str = ""

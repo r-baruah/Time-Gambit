@@ -1,13 +1,10 @@
 import json
 from typing import Dict, Any
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
-from openrouter import OpenRouter
 from app.models.state import AgentState
 from app.prompts.templates import CLARIFICATION_PROMPT
 from app.config import settings
-
-# Initialize LLM
-client = OpenRouter(api_key=settings.OPENROUTER_API_KEY)
+from app.services.llm import get_llm
 
 def clarification_node(state: AgentState) -> Dict[str, Any]:
     """
@@ -43,19 +40,16 @@ If a field was mentioned earlier in the conversation, include it.
 """
     
     # Construct messages for LLM
-    or_messages = [
-        {"role": "system", "content": context_prompt},
-        {"role": "user", "content": "Based on the full conversation above, what details do we have and what's missing?"}
-    ]
+    # Use LangChain format
+    llm = get_llm()
     
     # Invoke the LLM
     try:
-        response = client.chat.send(
-            model=settings.OPENROUTER_MODEL,
-            messages=or_messages,
-            temperature=0
-        )
-        content = response.choices[0].message.content
+        response = llm.invoke([
+            SystemMessage(content=context_prompt),
+            HumanMessage(content="Based on the full conversation above, what details do we have and what's missing?")
+        ])
+        content = response.content
         
         # Clean potential markdown wrapping
         if "```json" in content:
@@ -66,7 +60,7 @@ If a field was mentioned earlier in the conversation, include it.
         content = content.strip()
         
     except Exception as e:
-        print(f"[CLARIFICATION] Error calling OpenRouter: {e}")
+        print(f"[CLARIFICATION] Error calling LLM: {e}")
         content = "{}"
         
     # Parse JSON

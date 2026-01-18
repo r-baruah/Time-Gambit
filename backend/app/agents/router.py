@@ -1,12 +1,8 @@
 from typing import Dict, Any, Literal
 from langchain_core.messages import SystemMessage, HumanMessage
-from openrouter import OpenRouter
 from app.models.state import AgentState
 from app.prompts.templates import ROUTER_PROMPT
-from app.config import settings
-
-# Initialize LLM
-client = OpenRouter(api_key=settings.OPENROUTER_API_KEY)
+from app.services.llm import get_llm
 
 def router_node(state: AgentState) -> Dict[str, Any]:
     """
@@ -15,22 +11,18 @@ def router_node(state: AgentState) -> Dict[str, Any]:
     messages = state["messages"]
     last_message = messages[-1]
     
-    # 1. Construct messages for OpenRouter
-    or_messages = [
-        {"role": "system", "content": ROUTER_PROMPT},
-        {"role": "user", "content": last_message.content}
-    ]
+    # 1. Invoke the LLM
+    llm = get_llm()
     
-    # 2. Invoke the LLM
     try:
-        response = client.chat.send(
-            model=settings.OPENROUTER_MODEL,
-            messages=or_messages,
-            temperature=0
-        )
-        content = response.choices[0].message.content
+        # LangChain Usage
+        response = llm.invoke([
+            SystemMessage(content=ROUTER_PROMPT),
+            HumanMessage(content=last_message.content)
+        ])
+        content = response.content
     except Exception as e:
-        print(f"[ROUTER] Error calling OpenRouter: {e}")
+        print(f"[ROUTER] Error calling LLM: {e}")
         content = "CHITCHAT" # Fallback
 
     intent = content.strip().upper()
@@ -55,6 +47,7 @@ def router_node(state: AgentState) -> Dict[str, Any]:
         "current_step": "router",
         "reasoning_logs": [f"[ROUTER]: Analyzing input... Classified as {intent}."]
     }
+
 
 def route_decision(state: AgentState) -> Literal["clarification", "solver", "synthesizer"]:
     """

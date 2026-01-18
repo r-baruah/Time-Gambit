@@ -61,9 +61,13 @@ async def auth_callback(code: str):
 # ==================== SETTINGS ENDPOINTS ====================
 
 class SettingsUpdate(BaseModel):
+    llm_provider: Optional[str] = None
     openrouter_api_key: Optional[str] = None
     openrouter_model: Optional[str] = None
     openai_api_key: Optional[str] = None
+    openai_model: Optional[str] = None
+    google_api_key: Optional[str] = None
+    google_model: Optional[str] = None
     google_client_id: Optional[str] = None
     google_client_secret: Optional[str] = None
     working_hours_start: Optional[str] = None
@@ -72,6 +76,7 @@ class SettingsUpdate(BaseModel):
     lunch_end: Optional[str] = None
 
 class TestConnectionRequest(BaseModel):
+    provider: str # openrouter, openai, google
     api_key: str
     model: str
 
@@ -79,9 +84,13 @@ class TestConnectionRequest(BaseModel):
 async def get_settings():
     """Get current settings (with masked API keys)."""
     return {
+        "llm_provider": settings.LLM_PROVIDER,
         "openrouter_api_key": mask_key(settings.OPENROUTER_API_KEY),
         "openrouter_model": settings.OPENROUTER_MODEL,
         "openai_api_key": mask_key(settings.OPENAI_API_KEY),
+        "openai_model": settings.OPENAI_MODEL,
+        "google_api_key": mask_key(settings.GOOGLE_API_KEY),
+        "google_model": settings.GOOGLE_MODEL,
         "google_client_id": settings.GOOGLE_CLIENT_ID,
         "google_client_secret": mask_key(settings.GOOGLE_CLIENT_SECRET),
         "working_hours_start": settings.USER_WORKING_HOURS_START,
@@ -93,21 +102,27 @@ async def get_settings():
 def mask_key(key: str) -> str:
     """Mask API key for display."""
     if not key or len(key) < 8:
-        return "***"
+        return "" # Don't show *** if empty
     return key[:4] + "*" * (len(key) - 8) + key[-4:]
 
 @app.post("/settings")
 async def update_settings(data: SettingsUpdate):
-    """Update settings. Note: In production, this should persist to .env or database."""
-    import os
-    
-    # Update in-memory settings (for demo - in production you'd write to .env)
+    """Update settings."""
+    if data.llm_provider:
+        settings.LLM_PROVIDER = data.llm_provider
     if data.openrouter_api_key and not data.openrouter_api_key.startswith("***"):
         settings.OPENROUTER_API_KEY = data.openrouter_api_key
     if data.openrouter_model:
         settings.OPENROUTER_MODEL = data.openrouter_model
     if data.openai_api_key and not data.openai_api_key.startswith("***"):
         settings.OPENAI_API_KEY = data.openai_api_key
+    if data.openai_model:
+        settings.OPENAI_MODEL = data.openai_model
+    if data.google_api_key and not data.google_api_key.startswith("***"):
+        settings.GOOGLE_API_KEY = data.google_api_key
+    if data.google_model:
+        settings.GOOGLE_MODEL = data.google_model
+        
     if data.working_hours_start:
         settings.USER_WORKING_HOURS_START = data.working_hours_start
     if data.working_hours_end:
@@ -121,20 +136,44 @@ async def update_settings(data: SettingsUpdate):
 
 @app.post("/settings/test")
 async def test_connection(data: TestConnectionRequest):
-    """Test OpenRouter API connection."""
+    """Test LLM API connection."""
     import time
+    from langchain_core.messages import HumanMessage
+    
     try:
-        from openrouter import OpenRouter
-        
-        api_key = data.api_key if not data.api_key.startswith("***") else settings.OPENROUTER_API_KEY
-        
-        client = OpenRouter(api_key=api_key)
+        # Determine Key
+        api_key = data.api_key
+        if api_key.startswith("***"):
+            # Use stored key
+            if data.provider == "openrouter":
+                api_key = settings.OPENROUTER_API_KEY
+            elif data.provider == "openai":
+                api_key = settings.OPENAI_API_KEY
+            elif data.provider == "google":
+                api_key = settings.GOOGLE_API_KEY
+                
+        # Instantiate correct client
+        llm = None
+        if data.provider == "openrouter":
+            from langchain_openai import ChatOpenAI
+            llm = ChatOpenAI(
+                api_key=api_key, 
+                base_url="https://openrouter.ai/api/v1",
+                model=data.model, 
+                temperature=0
+            )
+        elif data.provider == "openai":
+            from langchain_openai import ChatOpenAI
+            llm = ChatOpenAI(api_key=api_key, model=data.model, temperature=0)
+        elif data.provider == "google":
+            from app.services.llm import GoogleGenAIWrapper
+            llm = GoogleGenAIWrapper(api_key=api_key, model=data.model, temperature=0)
+            
+        if not llm:
+            return {"success": False, "error": "Invalid provider"}
+
         start = time.time()
-        response = client.chat.send(
-            model=data.model,
-            messages=[{"role": "user", "content": "Say OK"}],
-            temperature=0
-        )
+        llm.invoke([HumanMessage(content="Say OK")])
         latency = int((time.time() - start) * 1000)
         
         return {"success": True, "latency": latency}
