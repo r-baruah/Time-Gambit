@@ -10,3 +10,6 @@ __pycache__/
 venv/
 .vscode/
 .idea/
+token.json
+credentials.json
+client_secret.json
