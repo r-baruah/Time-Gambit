@@ -4,7 +4,7 @@ from google import genai
 from google.genai import types
 
 # User provided credentials and model
-API_KEY = "AIzaSyDPQsTOgWA4BJEjPyZkCm1vSbJKKsyU_1g"
+API_KEY = "api-key-here" #Add key bro
 # Note: The user specified 'gemini-2.5-flash-' (with a trailing dash). 
 # I will try it exactly as requested, but usually model names don't end in a dash.
 # If it fails, I'll mention it.
