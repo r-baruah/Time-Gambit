@@ -45,18 +45,17 @@ class GoogleGenAIWrapper:
                     parts=[self.types.Part.from_text(text=msg.content)]
                 ))
 
-        # Config with Thinking and Search
-        # Using 'googleSearch' as per user provided snippet
-        tools = [
-            self.types.Tool(googleSearch=self.types.GoogleSearch()),
-        ]
+        # Config - only add thinking for thinking models
+        is_thinking_model = "thinking" in self.model.lower()
         
-        generate_content_config = self.types.GenerateContentConfig(
-            thinking_config=self.types.ThinkingConfig(
-                thinking_level="HIGH",
-            ),
-            tools=tools,
-        )
+        config_kwargs = {}
+        
+        if is_thinking_model:
+            config_kwargs["thinking_config"] = self.types.ThinkingConfig(thinking_level="HIGH")
+            # Thinking models also support search
+            config_kwargs["tools"] = [self.types.Tool(googleSearch=self.types.GoogleSearch())]
+        
+        generate_content_config = self.types.GenerateContentConfig(**config_kwargs) if config_kwargs else None
 
         try:
             response = self.client.models.generate_content(

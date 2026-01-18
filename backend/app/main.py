@@ -38,25 +38,47 @@ async def health_check():
 # ==================== AUTH ENDPOINTS ====================
 
 @app.get("/auth/status")
-async def auth_status():
+async def auth_status(user_id: Optional[str] = "default_web_user"):
     """Check if user is authenticated with Google Calendar."""
-    return {"authenticated": calendar_service.is_authenticated()}
+    return {"authenticated": calendar_service.is_authenticated(user_id)}
 
 @app.get("/auth/login")
-async def auth_login():
+async def auth_login(user_id: Optional[str] = "default_web_user"):
     """Get the Google OAuth URL to redirect user to."""
-    auth_url = calendar_service.get_auth_url()
+    auth_url = calendar_service.get_auth_url(user_id)
     return {"auth_url": auth_url}
 
+from fastapi.responses import RedirectResponse, HTMLResponse
+
 @app.get("/auth/callback")
-async def auth_callback(code: str):
+async def auth_callback(code: str, state: Optional[str] = "default_web_user"):
     """Handle OAuth callback from Google - redirect back to frontend."""
-    success = calendar_service.handle_callback(code)
+    success = calendar_service.handle_callback(code, state)
     if success:
-        # Redirect to frontend with success
-        return RedirectResponse(url="http://localhost:3000?auth=success")
+        html_content = f"""
+        <html>
+            <head>
+                <title>Auth Success</title>
+                <style>
+                    body {{ font-family: sans-serif; text-align: center; padding-top: 50px; background-color: #121212; color: #e0e0e0; }}
+                    .container {{ max-width: 500px; margin: 0 auto; padding: 20px; border: 1px solid #333; border-radius: 10px; background-color: #1e1e1e; }}
+                    h1 {{ color: #4caf50; }}
+                    a {{ display: inline-block; margin-top: 20px; padding: 10px 20px; background-color: #2196f3; color: white; text-decoration: none; border-radius: 5px; }}
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <h1>✅ Authentication Successful!</h1>
+                    <p>Secure connection established for user ID: {state}</p>
+                    <p>You can now close this window and return to the Telegram Bot.</p>
+                    <a href="tg://resolve?domain=Kairosengine_bot">Open Telegram</a>
+                </div>
+            </body>
+        </html>
+        """
+        return HTMLResponse(content=html_content, status_code=200)
     else:
-        return RedirectResponse(url="http://localhost:3000?auth=failed")
+        return HTMLResponse(content="<h1>❌ Authentication Failed</h1><p>Please try again.</p>", status_code=400)
 
 # ==================== SETTINGS ENDPOINTS ====================
 

@@ -123,7 +123,9 @@ def find_available_slot(target_date: datetime, duration: timedelta, existing_eve
     
     return None
 
-def solver_node(state: AgentState) -> Dict[str, Any]:
+from langchain_core.runnables import RunnableConfig
+
+def solver_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
     """
     Enhanced Calendar Solver with:
     - Natural language date parsing
@@ -133,12 +135,49 @@ def solver_node(state: AgentState) -> Dict[str, Any]:
     """
     print("--> [SOLVER] Resolving constraints...")
     
+    # Extract user_id from thread_id
+    user_id = config.get("configurable", {}).get("thread_id", "default_web_user")
+    
+    # 0. Check for QUERY intent
+    
+    is_query = False
+    for log in reversed(state.get("reasoning_logs", [])):
+        if "Classified as QUERY" in log:
+            is_query = True
+            break
+        if "Classified as" in log: # Stop at the most recent classification
+            break
+            
+    if is_query:
+        print(f"--> [SOLVER] detected QUERY mode for {user_id}.")
+        events = calendar_service.list_events(user_id=user_id, max_results=5)
+        if not events:
+             response_msg = "Your calendar is clear for the next few upcoming events."
+        else:
+            response_msg = "**Upcoming Events:**\n"
+            for event in events:
+                start = event.get('start', {}).get('dateTime', event.get('start', {}).get('date'))
+                # Simple formatting
+                try:
+                    dt = datetime.fromisoformat(start.replace('Z', '+00:00'))
+                    date_str = dt.strftime("%a, %b %d at %I:%M %p")
+                except:
+                    date_str = start
+                
+                response_msg += f"• **{event.get('summary', 'Untitled')}** ({date_str})\n"
+                
+        return {
+            "reasoning_logs": ["[SOLVER]: Executed Read-Only Query."],
+            "messages": [AIMessage(content=response_msg)],
+            "current_step": "solver"
+        }
+
     new_logs = []
-    new_logs.append("[SOLVER]: Connecting to Google Calendar API...")
+    new_logs.append(f"[SOLVER]: Connecting to Google Calendar API for {user_id}...")
     
     try:
         # Get existing events for the week
-        events = calendar_service.list_events(max_results=10)
+        events = calendar_service.list_events(user_id=user_id, max_results=10)
         event_summaries = [e.get('summary', 'Untitled') for e in events]
         if event_summaries:
             new_logs.append(f"[SOLVER]: Found {len(events)} upcoming events: {', '.join(event_summaries[:3])}...")
@@ -183,7 +222,6 @@ def solver_node(state: AgentState) -> Dict[str, Any]:
         # Get title
         title = task.get('title', 'Scheduled Task')
         if not title or title == 'Scheduled Task':
-            # Try to extract from message
             title = last_user_msg.split(" on ")[0] if " on " in last_user_msg else last_user_msg[:50]
             title = title.strip().title()
         
@@ -199,6 +237,7 @@ def solver_node(state: AgentState) -> Dict[str, Any]:
             
             # AUTO-SCHEDULE: Create the event
             new_event = calendar_service.create_event(
+                user_id=user_id,
                 summary=title,
                 start_time=start_time.isoformat(),
                 end_time=end_time.isoformat(),

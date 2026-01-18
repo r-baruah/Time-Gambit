@@ -11,15 +11,33 @@ def router_node(state: AgentState) -> Dict[str, Any]:
     messages = state["messages"]
     last_message = messages[-1]
     
-    # 1. Invoke the LLM
+    # 1. Invoke the LLM with Context
     llm = get_llm()
     
+    # Get last few messages to understand context (e.g. if User says "Yes" to "Confirm?")
+    recent_messages = messages[-5:] # Last 5 messages
+    
+    # helper to format messages for the router strict prompt
+    context_text = ""
+    for m in recent_messages:
+        role = "System"
+        if hasattr(m, 'type'):
+            if m.type == "human":
+                role = "User"
+            elif m.type == "ai":
+                role = "Assistant"
+        context_text += f"{role}: {m.content}\n"
+    
     try:
-        # LangChain Usage
-        response = llm.invoke([
-            SystemMessage(content=ROUTER_PROMPT),
-            HumanMessage(content=last_message.content)
-        ])
+        # We wrap it in a single prompt to force the classification behavior with context
+        full_prompt = f"""{ROUTER_PROMPT}
+
+CONVERSATION HISTORY:
+{context_text}
+
+CLASSIFY THE LAST MESSAGE (User: {last_message.content}):"""
+
+        response = llm.invoke([HumanMessage(content=full_prompt)])
         content = response.content
     except Exception as e:
         print(f"[ROUTER] Error calling LLM: {e}")

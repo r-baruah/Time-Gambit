@@ -1,5 +1,6 @@
-# ♟️ TIME-GAMBIT
+# ♟️ TIME GAMBIT
 > **The High-Agency Scheduling Architect.**
+> *A Physics-Informed, Deterministic Agent for the Chaos of Time.*
 
 [![Event](https://img.shields.io/badge/Event-DevFest_Goa_2026-blue?style=for-the-badge&logo=google)](https://devfest.google.com)
 [![Author](https://img.shields.io/badge/Author-Ripuranjan_Baruah-10b981?style=for-the-badge&logo=github)](https://github.com/r-baruah)
@@ -10,55 +11,63 @@
 
 ## 🚀 Mission Statement
 
-**Time-Gambit** solves the "Calendar Tetris" problem. It is not just a chatbot; it is a **Deterministically Constrained, Probabilistically Reasoning Agent**.
+**Time Gambit** solves the "Calendar Tetris" problem. It is not just a chatbot; it is a **Deterministically Constrained, Probabilistically Reasoning Agent**.
 
-Most scheduling assistants hallucinate slots or fail to understand context. Time-Gambit treats your schedule as a logic puzzle. It negotiates, plans, and executes calendar operations by reasoning about urgency, priority, and physical time constraints (working hours, lunch breaks) before ever touching your data.
+Most scheduling assistants hallucinate slots or fail to understand context. Time Gambit treats your schedule as a logic puzzle. It negotiates, plans, and executes calendar operations by reasoning about urgency, priority, and physical time constraints (working hours, lunch breaks) before ever touching your data.
 
 ---
 
 ## 🧠 System Architecture
 
-The core of Time-Gambit is built on a **Stateful Multi-Agent Graph** architecture using LangGraph.
+The core of Time Gambit is built on a **Stateful Multi-Agent Graph** architecture using LangGraph. It employs a **Router-Solver Pattern** to ensure precision.
 
 ```mermaid
 graph TD
     User[User Input] --> Router{Router Agent}
     Router -->|Schedule Request| Check[Check Completeness]
-    Router -->|Query| Search[Calendar Search]
-    Router -->|Chitchat| Reply[Simple Reply]
-    
+    Router -->|Query| Solver[Solver Agent]
+    Router -->|Chitchat| Synthesizer[Synthesizer Agent]
+
     Check -->|Missing Info| Clarify[Clarification Agent]
     Clarify -->|Ask User| User
-    
-    Check -->|Complete| Solver[Solver Agent]
+
+    Check -->|Complete| Solver
     Solver -->|1. Parse Dates| NLP[Natural Language Parsing]
     Solver -->|2. Fetch Events| GCal[Google Calendar API]
     Solver -->|3. Solve Constraints| Logic[Constraint Engine]
     Logic -->|Slot Found| Book[Book Slot]
-    Logic -->|Conflict| Suggest[Suggest Alternative]
+    Logic -->|Conflict| Synthesizer
+    Book --> Synthesizer
+    Synthesizer -->|Final Response| User
 ```
 
 ### The Agentic Workflow
 
-1.  **🔵 Router Agent**: The gatekeeper. It analyzes semantic intent to route requests to the correct sub-system, filtering out noise.
-2.  **🟢 Clarification Agent**: The context-aware interrogator. It refuses to guess. If you say "Schedule a meeting," it asks "With whom and for how long?" It maintains state across multiple turns.
+1.  **🔵 Router Agent**: The gatekeeper. It analyzes semantic intent (Schedule vs. Query vs. Chat) and routes accordingly.
+2.  **🟢 Clarification Agent**: The context-aware interrogator. If you say "Schedule a meeting," it halts execution and asks "With whom and for how long?" It maintains conversation state.
 3.  **🟡 Solver Agent**: The execution engine. It acts as the "Physics Engine" of your calendar:
-    *   **Temporal Parsing**: Converts "next Tuesday morning" to ISO timestamps.
+    *   **Temporal Parsing**: Converts natural language to ISO timestamps.
     *   **Constraint Satisfaction**: Respects `USER_WORKING_HOURS` and `LUNCH_BREAKS`.
     *   **Conflict Detection**: Real-time checking against existing Google Calendar events.
-4.  **🟣 Tool Implementation**: Direct OAuth 2.0 integration with Google Calendar for read/write operations.
+4.  **🟣 Synthesizer**: The voice. It takes raw data or success states and crafts a human-friendly response.
 
 ---
 
-## ⚡ Key Capabilities
+## 🤖 Kairos: The Telegram Interface
 
-| Feature | Description |
-| :--- | :--- |
-| **🧠 Cognitive Parsing** | Understands complex inputs: *"Hackathon on the 24th from 10am for 2 days."* |
-| **🛡️ Privacy First** | Frontend-initiated OAuth flow ensures tokens are handled securely. |
-| **🛑 Hallucination Guard** | The agent will **never** book a slot without having all necessary details (Title, Date, Duration). |
-| **⚙️ Dynamic Config** | User-settable constraints for Working Hours (09:00-17:00) and Lunch Breaks. |
-| **🔌 Model Agnostic** | Powered by OpenRouter, supporting GPT-4o, Claude 3.5 Sonnet, Gemini Pro, and Llama 3. |
+**Kairos (@Kairosengine_bot)** is the primary interface for Time Gambit, designed for low-friction, high-availability usage.
+
+### Key Features
+1.  **The "Auth-First" Barrier**:
+    *   Kairos enforces security at the door. No commands are processed until the user is authenticated via OAuth 2.0.
+    *   Unauthenticated users are greeted with a secure "Login with Google" link.
+    
+2.  **BYOK (Bring Your Own Key) Architecture**:
+    *   **Privacy-Maximalist Mode**: Users can optionally provide their own Google Gemini or OpenAI API keys.
+    *   **Default Mode**: Users can skip and use the hosted system's credentials.
+
+3.  **Smart Forwarding**:
+    *   Kairos acts as a bridge, forwarding authorized messages to the Backend Router and delivering the Agent's reasoned responses back to the user.
 
 ---
 
@@ -70,15 +79,13 @@ graph TD
 -   **LangChain** (LLM Interface)
 -   **Pydantic** (Data Validation)
 
-### **Frontend Experience**
--   **Next.js 14** (App Router)
--   **React 18** (Client Components)
--   **Tailwind CSS** (Styling)
--   **Lucide-React** (Iconography)
+### **Interfaces**
+-   **Telegram Bot**: `python-telegram-bot` (Async)
+-   **Frontend**: Next.js 14, React 18, Tailwind CSS (for Admin/Settings)
 
 ### **Integration**
 -   **Google Calendar API v3**
--   **OpenRouter API**
+-   **OpenRouter API** (Support for GPT-4o, Gemini Pro, Claude 3.5)
 
 ---
 
@@ -100,31 +107,28 @@ pip install -r requirements.txt
 # Configure Environment
 cp .env.example .env
 # Edit .env with your keys:
-# OPENROUTER_API_KEY, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET
+# OPENROUTER_API_KEY, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, TELEGRAM_BOT_TOKEN
 ```
 
-### 2. Frontend Initialization
+### 2. Bot Initialization
+
+The Bot runs as a service within the backend ecosystem.
+
+```bash
+# Run the Bot Service
+python -m services.kairos_bot.main
+```
+
+### 3. Frontend Initialization (Optional Dashboard)
 
 ```bash
 cd frontend
-
-# Install packages
 npm install
-
-# Start development server
 npm run dev
 ```
-
-### 3. Launch
-
-Access the application at `http://localhost:3000`.
-1.  Click the **⚙️ Settings** icon to configure your constraints.
-2.  Authenticate with **Google Calendar**.
-3.  Begin scheduling.
 
 ---
 
 <div align="center">
-    <sub>Built with ❤️ and ☕ for DevFest Goa 2026</sub>
+    <sub>Built with ❤️ and ☕ for DevFest Goa 2026 by Ripuranjan Baruah</sub>
 </div>
-

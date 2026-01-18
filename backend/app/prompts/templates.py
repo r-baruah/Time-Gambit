@@ -12,7 +12,7 @@ Classify the USER'S INPUT into ONE of these categories:
 3. "CHITCHAT": Greetings, thanks, or off-topic conversation.
    Examples: "hi", "hello", "thanks", "who are you", "bye"
 
-IMPORTANT: If the user mentions ANY task with a date/time (even vaguely like "on 24th", "next week", "tomorrow"), classify as SCHEDULE_REQUEST.
+IMPORTANT: If the user mentions ANY task with a date/time, OR is answering a previous clarification question (e.g. providing duration, confirming details), classify as SCHEDULE_REQUEST.
 
 Output ONLY the category name. No explanation.
 """
